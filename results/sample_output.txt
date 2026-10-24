@@ -1,0 +1,241 @@
+
+==============================================================================
+  STEP 1 — Generating the (messy) dataset
+==============================================================================
+Wrote data/students.csv, data/coursework.json, data/exams.xlsx
+
+==============================================================================
+  STEP 2 — Pandas: load, inspect, clean, merge, engineer features
+==============================================================================
+
+=== Inspecting students.csv: shape=(1525, 11) ===
+   student_id     track  year enrollment_date  study_hours_week  sleep_hours  screen_time_hours part_time_job  prior_gpa  coffee_cups_day attendance
+0        1001  security     4      2024-08-28              20.3          7.3                5.0            No       2.75              1.0      64.4%
+1        1002   Systems     3      2024-03-07               9.5          9.1                1.8           Yes       2.06              3.0      80.0%
+2        1003  Security     4      2025-07-28               0.0          7.8                2.7            No       3.39              0.0      75.4%
+
+dtypes:
+ student_id             int64
+track                    str
+year                   int64
+enrollment_date          str
+study_hours_week     float64
+sleep_hours          float64
+screen_time_hours    float64
+part_time_job            str
+prior_gpa            float64
+coffee_cups_day      float64
+attendance               str
+
+missing values per column:
+ study_hours_week    46
+sleep_hours         61
+prior_gpa           75
+coffee_cups_day     47
+
+duplicate rows: 25
+
+describe():
+        student_id     year  study_hours_week  sleep_hours  screen_time_hours  prior_gpa  coffee_cups_day
+count     1525.00  1525.00           1479.00      1464.00            1525.00    1450.00          1478.00
+mean      1750.86     2.47             14.83         6.81               5.02       2.97             2.02
+std        431.73     1.11             11.67         1.25               2.01       0.51             1.41
+min       1001.00     1.00              0.00         0.00               0.50       1.50             0.00
+25%       1380.00     1.00             10.00         6.00               3.70       2.63             1.00
+50%       1751.00     2.00             14.10         6.80               4.90       2.97             2.00
+75%       2124.00     3.00             18.10         7.60               6.40       3.33             3.00
+max       2500.00     4.00            166.30        10.00              11.60       4.00             8.00
+
+[clean] dropped 25 duplicate rows
+[clean] track value_counts after normalizing:
+ track
+AI/ML       449
+Web Dev     354
+Systems     309
+Security    234
+Theory      154
+[clean] filled 60 missing values in sleep_hours with per-track median
+[clean] filled 45 missing values in study_hours_week with per-track median
+[clean] filled 75 missing values in prior_gpa with per-track median
+
+[merge] students (1500, 11) + coursework (1500, 4) + exams (1500, 4) -> (1500, 17)
+[outliers] study_hours_week   IQR flags  19 | z-score flags   8
+[outliers] sleep_hours        IQR flags  32 | z-score flags   5
+[outliers] removing 13 rows
+
+=== groupby + agg: performance by track ===
+          students  avg_score  pass_rate  avg_study
+track                                              
+Web Dev        353      68.06       0.77      14.33
+Security       233      65.25       0.71      13.92
+AI/ML          446      64.99       0.66      14.37
+Theory         152      60.46       0.54      13.57
+Systems        303      61.22       0.53      13.79
+
+=== pivot_table: mean score by track x year ===
+year_label  Freshman  Sophomore  Junior  Senior
+track                                          
+AI/ML           65.8       66.4    62.9    64.5
+Security        65.4       63.9    66.0    65.7
+Systems         59.9       61.0    62.5    61.6
+Theory          57.6       59.4    60.4    64.1
+Web Dev         67.8       68.5    67.3    68.7
+
+=== crosstab: grade distribution by part-time job (row %) ===
+grade             F     D     C     B    A
+part_time_job                             
+Has job        46.7  29.7  17.0   5.8  0.8
+No job         28.3  32.8  26.2  10.6  2.1
+
+=== query(): sleep-deprived students (< 5.5h) who still scored a B or better ===
+ student_id  sleep_hours  study_hours_week  final_score
+       1353          4.9              20.1         80.2
+       1492          5.1              30.9         89.0
+
+=== value_counts: grades ===
+grade
+F    513
+D    472
+C    343
+B    134
+A     25
+
+[encode] one-hot tracks + label-encoded grades {0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'F'}
+[encode] 20 model features: ['year', 'study_hours_week', 'sleep_hours', 'screen_time_hours', 'part_time_job', 'prior_gpa', 'coffee_cups_day', 'attendance', 'assignment_avg', 'leetcode_solved', 'github_commits_month', 'sleep_deficit', 'problems_per_study_hour', 'wellbeing', 'days_enrolled', 'track_AI/ML', 'track_Security', 'track_Systems', 'track_Theory', 'track_Web Dev']
+
+==============================================================================
+  STEP 3 — NumPy foundations
+==============================================================================
+
+=== NumPy: array basics ===
+arange(12).reshape(3, 4):
+ [[ 0  1  2  3]
+ [ 4  5  6  7]
+ [ 8  9 10 11]]
+row 1: [4 5 6 7] | column 2: [ 2  6 10] | bottom-right 2x2:
+ [[ 6  7]
+ [10 11]]
+even numbers via boolean mask: [ 0  2  4  6  8 10]
+zeros/ones/linspace: [0. 0. 0.] [1. 1. 1.] [0.   0.25 0.5  0.75 1.  ]
+flatten back: [ 0  1  2  3  4  5  6  7  8  9 10 11] | transposed shape: (4, 3)
+
+=== NumPy: loops vs vectorization ===
+python loop: 47.7 ms | vectorized: 0.66 ms | speed-up: 72x
+matrix - column means (broadcasting):
+ [[-4. -4. -4. -4.]
+ [ 0.  0.  0.  0.]
+ [ 4.  4.  4.  4.]]
+
+=== NumPy: statistics ===
+feature                    mean      std       var     min     max
+year                       2.47     1.12      1.24     1.0     4.0
+study_hours_week          14.09     5.83     33.96     0.0    34.7
+sleep_hours                6.83     1.16      1.36     3.5    10.0
+screen_time_hours          5.01     2.00      3.98     0.5    11.6
+part_time_job              0.34     0.47      0.22     0.0     1.0
+prior_gpa                  2.97     0.49      0.24     1.5     4.0
+coffee_cups_day            1.99     1.40      1.95     0.0     8.0
+attendance                76.11    12.30    151.38    42.3   100.0
+
+Pearson correlation with final_score (np.corrcoef):
+  study_hours_week         +0.664  ##########################
+  leetcode_solved          +0.644  #########################
+  assignment_avg           +0.591  #######################
+  github_commits_month     +0.554  ######################
+  attendance               +0.395  ###############
+  wellbeing                +0.342  #############
+  problems_per_study_hour  +0.287  ###########
+  sleep_deficit            -0.280  ###########
+  prior_gpa                +0.274  ##########
+  part_time_job            -0.208  ########
+  sleep_hours              +0.199  #######
+  screen_time_hours        -0.136  #####
+  days_enrolled            -0.029  #
+  coffee_cups_day          +0.027  #
+  year                     +0.013  
+
+standardized train: mean ≈ 0.000, std ≈ 1.000 | min-max train range: [0.0, 1.0]
+Normal-equation linear regression: RMSE = 5.73, R² = 0.797
+
+Training a neural network written from scratch in NumPy...
+From-scratch NumPy MLP test accuracy: 0.852
+[eda] saved figures/07_numpy_mlp_training.png
+
+==============================================================================
+  STEP 4 — Exploratory Data Analysis (Matplotlib + Seaborn)
+==============================================================================
+
+=== EDA: generating figures ===
+[eda] saved figures/01_distributions.png
+[eda] saved figures/02_correlation_heatmap.png
+[eda] saved figures/03_score_by_category.png
+[eda] saved figures/04_pass_fail_histograms.png
+[eda] saved figures/05_pairplot.png
+[eda] saved figures/06_relationships.png
+
+==============================================================================
+  STEP 5 — scikit-learn MLPClassifier: will the student pass?
+==============================================================================
+
+=== Effect of feature scaling ===
+  no scaling       test accuracy = 0.688
+  MinMaxScaler     test accuracy = 0.832
+  StandardScaler   test accuracy = 0.815
+
+=== Overfitting vs underfitting ===
+  UNDERFIT: 1 neuron + alpha=100                train acc 0.345 | val acc 0.345 | gap +0.000
+  OVERFIT: (256,128,64), no regularization      train acc 1.000 | val acc 0.819 | gap +0.181
+  GOOD FIT: (32,16) + alpha=1.0                 train acc 0.922 | val acc 0.874 | gap +0.048
+[eda] saved figures/08_overfitting_vs_underfitting.png
+
+=== Hyperparameter comparison (validation accuracy) ===
+    hyperparameter         value  val_accuracy  epochs_run
+        activation          relu      0.819328          35
+        activation          tanh      0.806723          28
+        activation      logistic      0.701681          16
+            solver          adam      0.819328          35
+            solver           sgd      0.789916          26
+hidden_layer_sizes          (8,)      0.777311          43
+hidden_layer_sizes         (32,)      0.827731          37
+hidden_layer_sizes      (64, 32)      0.836134          26
+hidden_layer_sizes (128, 64, 32)      0.840336          20
+             alpha         1e-05      0.819328          35
+             alpha          0.01      0.819328          35
+             alpha           1.0      0.836134          41
+             alpha          10.0      0.768908          28
+learning_rate_init        0.0001      0.323529          12
+learning_rate_init         0.001      0.819328          35
+learning_rate_init          0.01      0.836134          14
+learning_rate_init           0.1      0.857143          22
+[eda] saved figures/09_hyperparameters.png
+
+Final model stopped early after 55 epochs (best validation accuracy 0.888)
+
+=== Final MLPClassifier on the held-out TEST set ===
+              precision    recall  f1-score   support
+
+      Failed       0.80      0.68      0.74       103
+      Passed       0.84      0.91      0.88       195
+
+    accuracy                           0.83       298
+   macro avg       0.82      0.80      0.81       298
+weighted avg       0.83      0.83      0.83       298
+
+  ROC-AUC: 0.9141
+[eda] saved figures/10_confusion_matrix_roc.png
+[eda] saved figures/11_decision_boundary.png
+
+==============================================================================
+  STEP 6 — scikit-learn MLPRegressor: predict the exact score
+==============================================================================
+
+=== MLPRegressor: predicting the exact final score ===
+  MSE = 31.85 | RMSE = 5.64 points | R² = 0.810 | early stopping after 1248 epochs
+  (NumPy normal-equation linear regression baseline: RMSE = 5.73, R² = 0.797)
+[eda] saved figures/12_regression.png
+
+[models] saved results/pass_predictor.joblib and results/metrics.json
+
+==============================================================================
+  DONE ✅  — check the figures/ folder, then try:  python predict.py
+==============================================================================
